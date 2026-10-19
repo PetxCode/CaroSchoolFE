@@ -21,7 +21,7 @@ import {
 } from "lucide-react";
 import { Pin, ViewTab, AuthUser } from "./types";
 import { apiUrl } from "./api";
-import { INITIAL_PINS, INITIAL_CATEGORIES } from "./data/initialData";
+import { INITIAL_CATEGORIES } from "./data/initialData";
 import { Navbar } from "./components/Navbar";
 import { MasonryGrid } from "./components/MasonryGrid";
 import { PinModal } from "./components/PinModal";
@@ -33,11 +33,24 @@ import { VisualSearchModal } from "./components/VisualSearchModal";
 import { FavouritesView } from "./components/FavouritesView";
 
 export default function App() {
-  // Pins state initialized from localStorage, then synced with MongoDB Atlas
-  const [pins, setPins] = useState<Pin[]>(() => {
-    const saved = localStorage.getItem("pinspire_pins_v4");
-    return saved ? JSON.parse(saved) : INITIAL_PINS;
+  const [pins, setPins] = useState<Pin[]>([]);
+  const [favouriteIds, setFavouriteIds] = useState<string[]>(() => {
+    try {
+      const savedIds = localStorage.getItem("edupins_favourite_ids_v1");
+      if (savedIds) return JSON.parse(savedIds);
+
+      const cachedPins = JSON.parse(
+        localStorage.getItem("pinspire_pins_v4") || "[]",
+      );
+      return Array.isArray(cachedPins)
+        ? cachedPins.filter((pin) => pin.isFavourite).map((pin) => pin.id)
+        : [];
+    } catch {
+      return [];
+    }
   });
+  const [isPinsLoading, setIsPinsLoading] = useState(true);
+  const [pinsLoadError, setPinsLoadError] = useState<string | null>(null);
 
   // Admin Auth state
   const [authUser, setAuthUser] = useState<AuthUser | null>(null);
@@ -74,10 +87,13 @@ export default function App() {
 
   const [deleteConfirmPin, setDeleteConfirmPin] = useState<Pin | null>(null);
 
-  // Sync to local storage for instant offline loading
+  // Only favourite IDs are cached locally; image records always come from MongoDB.
   useEffect(() => {
-    localStorage.setItem("pinspire_pins_v4", JSON.stringify(pins));
-  }, [pins]);
+    localStorage.setItem(
+      "edupins_favourite_ids_v1",
+      JSON.stringify(favouriteIds),
+    );
+  }, [favouriteIds]);
 
   // Toast trigger helper
   const showToast = (title: string, message: string) => {
@@ -88,33 +104,53 @@ export default function App() {
     }, 3200);
   };
 
-  // Fetch pins from MongoDB Atlas on mount
+  // Load the gallery exclusively from the database API.
   useEffect(() => {
+    let isCurrent = true;
+
     const fetchPins = async () => {
+      setIsPinsLoading(true);
+      setPinsLoadError(null);
       try {
         const res = await fetch(apiUrl("/api/pins"));
-        if (res.ok) {
-          const mongoPins = await res.json();
-          if (Array.isArray(mongoPins)) {
-            // Preserve user's local favourite flags
-            setPins((prev) => {
-              const favMap = new Set(
-                prev.filter((p) => p.isFavourite).map((p) => p.id),
-              );
-              return mongoPins.map((mp: Pin) => ({
-                ...mp,
-                id: mp.id || (mp as any)._id,
-                isFavourite: favMap.has(mp.id || (mp as any)._id),
-              }));
-            });
-          }
+        const response = await res.json().catch(() => null);
+        if (!res.ok) {
+          throw new Error(
+            response?.error || "Could not load the image library.",
+          );
         }
+        if (!Array.isArray(response)) {
+          throw new Error(
+            "The database returned an invalid image library response.",
+          );
+        }
+        if (!isCurrent) return;
+
+        setPins(
+          response.map((pin: Pin) => ({
+            ...pin,
+            id: pin.id || (pin as any)._id,
+            isFavourite: favouriteIds.includes(pin.id || (pin as any)._id),
+          })),
+        );
       } catch (err) {
-        console.warn("Could not fetch latest pins from MongoDB Atlas:", err);
+        if (!isCurrent) return;
+        console.error("Could not load image records from the database:", err);
+        setPins([]);
+        setPinsLoadError(
+          err instanceof Error
+            ? err.message
+            : "Could not load the image library from the database.",
+        );
+      } finally {
+        if (isCurrent) setIsPinsLoading(false);
       }
     };
 
-    fetchPins();
+    void fetchPins();
+    return () => {
+      isCurrent = false;
+    };
   }, []);
 
   // Restore Admin Session from token
@@ -188,11 +224,15 @@ export default function App() {
 
   // Toggle favourite status
   const handleToggleFavourite = (pinId: string) => {
-    let nowFavourited = false;
+    const nowFavourited = !pins.find((pin) => pin.id === pinId)?.isFavourite;
+    setFavouriteIds((current) =>
+      nowFavourited
+        ? Array.from(new Set([...current, pinId]))
+        : current.filter((id) => id !== pinId),
+    );
     setPins((prev) =>
       prev.map((p) => {
         if (p.id === pinId) {
-          nowFavourited = !p.isFavourite;
           return {
             ...p,
             isFavourite: nowFavourited,
@@ -227,6 +267,7 @@ export default function App() {
       )
     ) {
       setPins((prev) => prev.map((p) => ({ ...p, isFavourite: false })));
+      setFavouriteIds([]);
       showToast(
         "Favourites Cleared",
         "All saved inspirations have been cleared.",
@@ -530,17 +571,38 @@ export default function App() {
                 </button>
               </div>
             )}
-            {/* Masonry Pin Grid - Zero Detail Below Images */}
-            <MasonryGrid
-              pins={filteredPins}
-              onSelectPin={(pin) => setSelectedPinForModal(pin)}
-              onToggleFavourite={handleToggleFavourite}
-              onOpenVisualSearchWithPin={(pin) => {
-                setVisualSearchSeedPin(pin);
-                setIsVisualSearchOpen(true);
-              }}
-              onOpenShare={(pin) => setSharingPin(pin)}
-            />
+            {isPinsLoading ? (
+              <div className="py-24 text-center text-sm font-medium text-stone-500">
+                Loading the image library from the database...
+              </div>
+            ) : pinsLoadError ? (
+              <div
+                role="alert"
+                className="mx-auto my-12 max-w-xl rounded-2xl border border-rose-200 bg-rose-50 p-6 text-center"
+              >
+                <p className="text-sm font-semibold text-rose-800">
+                  The image library could not be loaded from the database.
+                </p>
+                <p className="mt-2 text-xs text-rose-700">{pinsLoadError}</p>
+                <button
+                  onClick={() => window.location.reload()}
+                  className="mt-4 rounded-full bg-stone-900 px-4 py-2 text-xs font-bold text-white transition hover:bg-black"
+                >
+                  Retry
+                </button>
+              </div>
+            ) : (
+              <MasonryGrid
+                pins={filteredPins}
+                onSelectPin={(pin) => setSelectedPinForModal(pin)}
+                onToggleFavourite={handleToggleFavourite}
+                onOpenVisualSearchWithPin={(pin) => {
+                  setVisualSearchSeedPin(pin);
+                  setIsVisualSearchOpen(true);
+                }}
+                onOpenShare={(pin) => setSharingPin(pin)}
+              />
+            )}
           </div>
         ) : (
           <FavouritesView
