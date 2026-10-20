@@ -65,7 +65,7 @@ export const BrandLogo: React.FC<BrandLogoProps> = ({
                 : "text-stone-900 group-hover:text-emerald-700"
             } transition-colors`}
           >
-            Caro Favour School
+            Tos School
           </span>
         </div>
 

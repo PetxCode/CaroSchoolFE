@@ -114,7 +114,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           /> */}
           <div className="mr-10 flex flex-col">
             <img className="h-10 object-contain" src={pix} />
-            <p className="font-bold -mt-1">Caro Favour School</p>
+            <p className="font-bold -mt-1">Tos School</p>
           </div>
 
           {/* Nav Tabs: Explore & Favourites */}

@@ -107,7 +107,7 @@ export const AdminLoginModal: React.FC<AdminLoginModalProps> = ({
           </div>
           <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 text-xs font-bold mb-2">
             <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-            <span>Caro Favour School Admin Portal</span>
+            <span>Tos School Admin Portal</span>
           </div>
           <h2 className="text-xl font-bold text-stone-900">Curator Sign In</h2>
           <p className="text-xs text-stone-500 mt-1 max-w-xs">

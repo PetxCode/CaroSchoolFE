@@ -47,7 +47,7 @@ export const ShareModal: React.FC<ShareModalProps> = ({
         .toLowerCase()
         .replace(/[^a-z0-9]+/g, "-")
         .replace(/(^-|-$)/g, "");
-      a.download = `Caro Favour School-${cleanFilename || "curriculum-chart"}.jpg`;
+      a.download = `Tos School-${cleanFilename || "curriculum-chart"}.jpg`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -60,7 +60,7 @@ export const ShareModal: React.FC<ShareModalProps> = ({
     }
   };
 
-  const shareText = `Check out this ${pin.category ? `${pin.category} ` : ""}curriculum visual: "${pin.title}" on Caro Favour School`;
+  const shareText = `Check out this ${pin.category ? `${pin.category} ` : ""}curriculum visual: "${pin.title}" on Tos School`;
 
   // Social share URLs
   const socialNetworks = [

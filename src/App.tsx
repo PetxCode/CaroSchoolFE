@@ -661,7 +661,7 @@ export default function App() {
             setPins((prev) => [...newPins, ...prev]);
             showToast(
               "Batch Upload Successful",
-              `${newPins.length} ${newPins.length === 1 ? "image" : "images"} published to the Caro Favour School library.`,
+              `${newPins.length} ${newPins.length === 1 ? "image" : "images"} published to the Tos School library.`,
             );
           }}
         />
